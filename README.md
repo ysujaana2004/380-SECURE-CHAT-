@@ -4,6 +4,9 @@ This project is a secure, encrypted chat program built in C using GTK for the gr
 
 
 
-Encryption/Decryption/Inetgrity - Completed by Sujana Yeasmin 
 
-Message Authentication - Completed by Gaurav Gupta 
+Message Authentication & Initial configuration of program for MacOS - Completed by Gaurav Gupta 
+
+Encryption/Decryption/Integrity - Completed by Sujana Yeasmin 
+
+
