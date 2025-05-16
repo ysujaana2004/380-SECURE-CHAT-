@@ -1,0 +1,108 @@
+SECURE CHAT - PART 2 
+Team: Sujana Yeasmin & Gaurav Gupta
+Prof: William Skeith 
+Course: 380 Computer Security 
+
+Assumptions
+- Both parties have securely exchanged their long-term public keys before starting the chat.
+- The Diffie-Hellman parameters (prime p and generator g) are properly generated and meet modern cryptographic standards.
+- AES-256-CTR encryption and SHA-256 HMAC are considered secure against realistic attacks.
+- Network communication is assumed to be vulnerable to eavesdropping, modification, and replay attacks, but the devices themselves are trusted.
+- Each participant has a secure source of randomness for generating IVs and ephemeral keys.
+
+Claims 
+- Message Encryption (Confidentiality): All messages are protected with AES-256-CTR, keeping the content secure even if intercepted.
+- Message Integrity: HMAC-SHA256 is used to verify that messages haven't been tampered with during transit.
+- Authentication: The 3DH key exchange process ensures both parties can confirm each other's identity before communication.
+- Forward Secrecy: Using short-term keys means that even if a long-term key is exposed, past messages remain secure.
+- Replay Protection: Every message has a unique IV, preventing attackers from replaying old messages.
+- M-i-t-M-AProtection: Signed keys are used to make sure that only trusted devices can join the conversation, which reduces the risk of man-in-the-middle attacks.
+
+Assumed Adversary Capabilities
+- The attacker can intercept all network traffic between the communicating parties. They can modify, drop, delay, or reorder packets, effectively controlling the entire communication channel.
+- The attacker can attempt to spoof messages by crafting packets that appear to come from a legitimate sender. They may try to replace a legitimate public key with their own, tricking the other party into establishing a shared key with the attacker.
+BUT
+-  The attacker has access to powerful computational resources but cannot break AES-256 or SHA-256 within a realistic timeframe. They cannot feasibly factorize large primes or solve the discrete logarithm problem required to break Diffie-Hellman key exchange.
+
+
+Potential Threats and Mitigations
+
+Replay Attacks: An attacker captures and replays previously sent encrypted messages, tricking the receiver into accepting stale (outdated) data.
+
+Mitigation:
+- Random IVs: Each message is encrypted with a unique, randomly generated Initialization Vector (IV), ensuring that even identical messages produce different ciphertexts.
+- Ephemeral Keys: Using ephemeral DH keys as part of the 3DH handshake ensures that even if a message is replayed, it will fail decryption unless it is part of the current session.
+- Session Keys: The derived symmetric key is only valid for a single session, preventing old keys from being reused.
+- Timestamps or Nonces (arbitrary number is only used one time) (for Future): Although not currently implemented, adding timestamps or unique nonces to each message would provide further protection against replay attacks.
+
+Key Compromise: If a long-term private key is compromised, an attacker can impersonate a user or decrypt previously recorded messages.
+
+Mitigation:
+- Forward Secrecy: The use of ephemeral DH keys means that even if a long-term private key is compromised, past communications remain secure, as each session generates a new, independent shared key.
+- Short-Lived Ephemeral Keys: The frequent regeneration of ephemeral keys further reduces the impact of key compromise.
+- Key Shredding: Private keys are explicitly shredded in memory after use to reduce the risk of memory dump attacks. 
+
+
+Future Improvements:
+    - Session Expiration and Re-Keying: Occasionally, refresh session keys to limit the impact of a compromised key.
+
+    - Mutual TLS: Use TLS to add another layer of transport security.
+
+    - Message Deletion: Implement a secure message deletion feature to permanently erase messages.        
+
+    - End-to-End Encryption (E2EE): Strengthen privacy by ensuring only the sender and receiver can read messages, 
+        and nothing in between, even from the server.
+
+    - User Authentication: Add password or biometric authentication to the chat application.
+
+    - Replay Attack Mitigation: Use message sequence numbers or timestamps to prevent replay attacks.
+
+    - Improved Error Handling: Provide more informative error messages for connection issues and failed key exchanges.
+
+    - Cross-Platform Compatibility: Extend the application to work on mobile and web platforms.
+
+    - Logging and Audit Trails: Add secure logging for auditing purposes while preserving user privacy.
+
+    - Better UI/UX: Improve the chat interface for a more polished and intuitive user experience.
+
+    - Security Audits: Regularly audit the codebase for potential vulnerabilities and best practices.
+
+    - Anonymous Communication: Integrate Tor/VPN or a similar technology for anonymous, untraceable communication.    
+
+    - Backup and Recovery: Users can back up and recover their chat history securely.
+
+
+PEER - REVIEW: Saanvi Goyal
+Security Claims Verification:
+
+Confidentiality
+    - The application uses AES-256-CBC for message encryption, which is a strong block cipher providing confidentiality. However, CBC mode is vulnerable to padding oracle attacks if not handled carefully, and the code does not include explicit padding validation on the receiving side. This could lead to potential leakage of plaintext under certain attack scenarios.
+    - Recommendation: Use AES-GCM or AES-256-CTR to eliminate padding-based vulnerabilities and provide built-in integrity checking.
+
+Integrity
+    - Messages are authenticated using HMAC-SHA256, which is secure when combined with a sufficiently random key (derived from DH).
+The HMAC is correctly computed over the IV and ciphertext.
+However, the recvMsg function relies on memcmp for HMAC verification, which can leak timing information. A safer approach would be to use CRYPTO_memcmp to reduce timing side-channel risks.
+
+Mutual Authentication
+    - RSA signatures are used to sign ephemeral DH public keys for mutual authentication. 
+This is a strong mechanism, but it depends heavily on the security of the private keys. If the private keys are compromised, an attacker can impersonate either party.
+    
+    - Recommendation: Consider adding a layer of authentication, such as mutual TLS to strengthen identity verification.
+
+Forward Secrecy
+    - The implementation correctly uses ephemeral DH keys for each session, providing forward secrecy by ensuring that past communications remain secure even if long-term private keys are compromised.
+
+Replay Protection (Implied)
+    - The system relies on session-specific ephemeral keys to reduce the risk of replay attacks. However, without explicit nonces or timestamps, certain replay attacks may still be possible in cases where keys are reused within a single session.
+Recommendation: Consider adding sequence numbers or timestamps to each message to prevent replay attacks more effectively.
+
+Code Quality and Security Observations:
+    - Buffer Management: The use of fixed-size buffers (e.g., unsigned char buf[1024]) could lead to buffer overflows if input sizes are not carefully managed.
+    
+    - Memory Management: Some parts of the code (e.g., recvMsg) dynamically allocate memory for message buffers without checking for successful allocation, which could lead to crashes or undefined behavior.
+    
+    - Error Handling: Several important functions (encrypt_message and decrypt_message) return -1 on failure, but are not consistently checked for errors, which could potentially lead to silent failures or other issues.
+    
+    - Key Management: The shared key is stored as a global variable, which increases the risk of key leakage if the process is compromised.
+
